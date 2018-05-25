@@ -13,32 +13,33 @@ func fatalError(err error) {
 	}
 }
 
-type authorization struct {
-	commonName     string
-	alternateNames []string
-	signature      []byte
-}
+// type authorization struct {
+// 	commonName     string
+// 	alternateNames []string
+// 	signature      []byte
+// }
 
-type registration struct {
-	authKey   string
-	pubKey    []byte
-	signature []byte
-}
+// type registration struct {
+// 	authKey   string
+// 	pubKey    []byte
+// 	signature []byte
+// }
 
-type renewal struct {
-	oldCert   []byte
-	pubKey    []byte
-	signature []byte
-}
+// type renewal struct {
+// 	oldCert   []byte
+// 	pubKey    []byte
+// 	signature []byte
+// }
 
-type revokation struct {
-	commonName string
-	signature  []byte
-}
+// type revokation struct {
+// 	commonName string
+// 	signature  []byte
+// }
 
 func main() {
 	log.Print("Initializing CA...")
-	c, err := local.Initialize("ca.key", "ca.crt", "")
+	c, err := local.Initialize("test")
+	fatalError(err)
 
 	cert, err := c.RootCert()
 	fatalError(err)

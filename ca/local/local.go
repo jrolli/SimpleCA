@@ -3,54 +3,56 @@
 package local
 
 import (
-	// "errors"
+	"errors"
+
+	"math/big"
 
 	// Other packages
 	"github.com/jrolli/ca-proxy/ca"
 )
 
-// Initialize takes the paths for the DER-encoded private key and
-// certificate files for the CA and sets the package-level variables
-// for all future calls to the CA package.  Any IO or parsing errors
-// are passed through back to the caller.
-func Initialize(rootKeyFile, rootKeyCert, dataStore string) (ca.CertAuthorizer, error) {
-	c := localCa{nil, nil, ""}
-	err := c.initializeCaKey(rootKeyFile)
-	if err != nil {
-		return nil, err
-	}
+// TODO: Allow the control key to be distinct from the root key.
 
-	err = c.initializeCaCert(rootKeyCert)
-	if err != nil {
-		return nil, err
-	}
-	return &c, nil
+// Initialize takes the path to the data store for the CA and initializes
+// all of the necessary structure.  It always returns a CertAuthorizer so
+// it is important to check if there is an error during initializations.
+func Initialize(dataStore string) (ca.CertAuthorizer, error) {
+	c := localCa{nil, nil, ""}
+	return &c, c.initializeLocalCa(dataStore)
 }
 
-// func Load
-
-// Authorize takes the names authorized for the cert and a signature by
-// the control key over those names.  The registration key (long string)
-// is returned
 func (c *localCa) Authorize(names []string, sig []byte) ([]byte, error) {
-	return nil, nil
+	return nil, errors.New("Not implemented")
 }
 
 func (c *localCa) Register(auth, pub, sig []byte) ([]byte, error) {
-	return nil, nil
+	return nil, errors.New("Not implemented")
 }
 
 func (c *localCa) Renew(oldCert, pub, sig []byte) ([]byte, error) {
-	return nil, nil
+	return nil, errors.New("Not implemented")
 }
 
-//
 func (c *localCa) Revoke(serial, sig []byte) error {
-	return nil
+	return c.revokeSerial(serial, sig)
 }
 
-// CaCert returns a slice representation of the root CA certificate
-// or an error if the CA has not been initialized.
+// Getters
+func (c *localCa) CertBySerial(bi big.Int) ([]byte, error) {
+	return c.getCertBySerial(bi)
+}
+
+func (c *localCa) CertByName(name string) ([]byte, error) {
+	return c.getCertByName(name)
+}
+
 func (c *localCa) RootCert() ([]byte, error) {
-	return c.caCert, nil
+	if c.caCert == nil {
+		return nil, errors.New("ca/local: unintialized ca")
+	}
+	return c.caCert.Raw, nil
+}
+
+func (c *localCa) CRL() ([]byte, error) {
+	return c.getCRL()
 }
