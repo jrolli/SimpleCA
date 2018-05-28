@@ -28,8 +28,8 @@ type CertAuthorizer interface {
 	Renew(oldCertSerial, pub, sig []byte) ([]byte, error)
 
 	// Revoke uses the control key to revoke an existing certificate by its
-	// serial.  The server must validate the signature of the control key
-	// before revoking the certificate.
+	// serial in hex format.  The server must validate the signature of the
+	// control key before revoking the certificate.
 	Revoke(serial, sig []byte) error
 
 	// Getter Methods

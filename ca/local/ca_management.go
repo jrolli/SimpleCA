@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 
+	"encoding/asn1"
 	"errors"
 
 	"io/ioutil"
@@ -29,6 +30,29 @@ func marshalPublicKey(pub ecdsa.PublicKey) []byte {
 	return elliptic.Marshal(pub.Curve, pub.X, pub.Y)
 }
 
+// There is some kind of bug in the Go's x509 code that causes this to fail
+type ecdsaSignature struct {
+	R, S *big.Int
+}
+
+func checkSignature(pub ecdsa.PublicKey, msg, sig []byte) (bool, error) {
+	ecdsaSig := new(ecdsaSignature)
+	_, err := asn1.Unmarshal(sig, ecdsaSig)
+	if err != nil {
+		return false, err
+	}
+
+	if ecdsaSig.R.Sign() <= 0 || ecdsaSig.S.Sign() <= 0 {
+		return false, errors.New("invalid signature paramaters")
+	}
+
+	if !ecdsa.Verify(&pub, msg, ecdsaSig.R, ecdsaSig.S) {
+		return false, errors.New("invalid signature")
+	}
+
+	return true, nil
+}
+
 // localCa holds the data required for keeping state on a CA that is directly
 // controlled by the server.  The struct is for internal use but implements
 // the CertAuthorizer interface via the public functions in 'local.go'
@@ -36,68 +60,7 @@ type localCa struct {
 	caKey     *ecdsa.PrivateKey
 	caCert    *x509.Certificate
 	dataStore string
-}
-
-// initializeLocalCa does calls each of the functions necessary to initialize
-// the CA and passes any error back up the stack.
-func (c *localCa) initializeLocalCa(dataStore string) error {
-	c.dataStore = dataStore
-
-	err := os.MkdirAll(dataStore, 0755)
-	if err != nil {
-		return err
-	}
-
-	err = c.initializeCaKey(filepath.Join(dataStore, "ca.key"))
-	if err != nil {
-		return err
-	}
-
-	err = c.initializeCaCert(filepath.Join(dataStore, "ca.crt"))
-	if err != nil {
-		return err
-	}
-
-	// Make the directory for referencing certs by serial number (primary)
-	err = os.MkdirAll(filepath.Join(dataStore, "serial"), 0755)
-	if err != nil {
-		return err
-	}
-
-	// Symlink the CA's cert into the serial directory
-	filename := c.caCert.SerialNumber.Text(16) + ".crt"
-	filename = filepath.Join(dataStore, "serial", filename)
-	err = os.Symlink("../ca.crt", filename)
-	if err != nil && !os.IsExist(err) {
-		return err
-	}
-
-	// Make the directory for referencing certs by common name (symlinks)
-	err = os.MkdirAll(filepath.Join(dataStore, "common"), 0755)
-	if err != nil {
-		return err
-	}
-
-	// Symlink the CA's cert into the common name directory
-	filename = c.caCert.Subject.CommonName + ".crt"
-	filename = filepath.Join(dataStore, "common", filename)
-	err = os.Symlink("../ca.crt", filename)
-	if err != nil && !os.IsExist(err) {
-		return err
-	}
-
-	err = os.MkdirAll(filepath.Join(dataStore, "auths"), 0700)
-	if err != nil {
-		return err
-	}
-
-	filename = filepath.Join(dataStore, "revocations.txt")
-	err = ioutil.WriteFile(filename, []byte("\n"), 0644)
-	if err != nil {
-		return err
-	}
-
-	return c.updateCRL()
+	namespace string
 }
 
 // initializeCaKey attempts to load the CA's key from the filesystem and
@@ -131,7 +94,7 @@ func (c *localCa) initializeCaKey(key string) error {
 // initializeCaCert attempts to load the CA's certificate from the filesystem
 // and generates a new one if the file does not exist.  This must be called
 // after 'initializeCaKey'.
-func (c *localCa) initializeCaCert(cert string) error {
+func (c *localCa) initializeCaCert(cert, namespace string) error {
 	der, err := ioutil.ReadFile(cert)
 	switch err.(type) {
 	case (*os.PathError):
@@ -155,7 +118,7 @@ func (c *localCa) initializeCaCert(cert string) error {
 		// StreetAddress:,
 		// PostalCode:,
 		// SerialNumber:,
-		CommonName: "ca.vpn.rollinix.net",
+		CommonName: "ca." + namespace,
 		// Names:,
 		// ExtraNames:,
 	}
@@ -180,7 +143,7 @@ func (c *localCa) initializeCaCert(cert string) error {
 		MaxPathLenZero:              false,
 		NotAfter:                    time.Now().AddDate(10, 0, 7),
 		NotBefore:                   time.Now(),
-		PermittedDNSDomains:         []string{"vpn.rollinix.net"},
+		PermittedDNSDomains:         []string{namespace},
 		PermittedDNSDomainsCritical: true,
 		SerialNumber:                serial,
 		// SignatureAlgorithm:,
@@ -201,18 +164,9 @@ func (c *localCa) initializeCaCert(cert string) error {
 	return ioutil.WriteFile(cert, der, 0644)
 }
 
-func (c localCa) getCRL() ([]byte, error) {
-	err := c.updateCRL()
-	if err != nil {
-		return nil, err
-	}
-
-	return ioutil.ReadFile(filepath.Join(c.dataStore, "ca.crl"))
-}
-
-func (c localCa) updateCRL() error {
+func (c localCa) updateCRL(forced bool) error {
 	crlData, err := ioutil.ReadFile(filepath.Join(c.dataStore, "ca.crl"))
-	if err == nil {
+	if err == nil || forced {
 		crl, err := x509.ParseCRL(crlData)
 		if err == nil {
 			if c.caCert.CheckCRLSignature(crl) == nil {
@@ -227,7 +181,7 @@ func (c localCa) updateCRL() error {
 	revokedRaw, err := ioutil.ReadFile(revokedFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			revokedRaw = nil
+			revokedRaw = []byte("")
 		} else {
 			return err
 		}
@@ -267,31 +221,69 @@ func (c localCa) updateCRL() error {
 	return ioutil.WriteFile(filename, crlData, 0644)
 }
 
-func (c *localCa) getCertByName(name string) ([]byte, error) {
-	return ioutil.ReadFile(filepath.Join(c.dataStore, "common", name+".crt"))
-}
+func (c localCa) createCertificate(auth string, pub ecdsa.PublicKey) ([]byte, error) {
+	authFile := filepath.Join(c.dataStore, "auths", auth+".txt")
+	rawNames, err := ioutil.ReadFile(authFile)
+	names := strings.Split(string(rawNames), "\n")
 
-func (c *localCa) getCertBySerial(bi big.Int) ([]byte, error) {
-	f := filepath.Join(c.dataStore, "serial", bi.Text(16)+".crt")
-	return ioutil.ReadFile(f)
-}
+	random := rand.Reader
+	subject := pkix.Name{
+		Country:            []string{"US"},
+		Organization:       []string{"RolliNix"},
+		OrganizationalUnit: []string{"VPN Certificates"},
+		// Locality:,
+		// Province:,
+		// StreetAddress:,
+		// PostalCode:,
+		// SerialNumber:,
+		CommonName: names[0],
+		// Names:,
+		// ExtraNames:,
+	}
 
-func (c *localCa) revokeSerial(s, sig []byte) error {
-	err := c.caCert.CheckSignature(x509.ECDSAWithSHA256, s, sig)
+	keyId := sha256.Sum256(marshalPublicKey(c.caKey.PublicKey))
+	sn_max := big.NewInt((1 << 30) - 1)
+
+	serial, err := rand.Int(random, sn_max)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	serial := new(big.Int)
-	_, success := serial.SetString(string(s), 16)
-	if !success {
-		return errors.New("invalid serial (not hexadecimal)")
+	keyUse := x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement
+	extKeyUse := []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageIPSECUser}
+	metaCert := &x509.Certificate{
+		BasicConstraintsValid: false,
+		DNSNames:              names,
+		ExtKeyUsage:           extKeyUse,
+		IsCA:                  false,
+		KeyUsage:              keyUse,
+		MaxPathLen:            2,
+		MaxPathLenZero:        false,
+		NotAfter:              time.Now().AddDate(10, 0, 7),
+		NotBefore:             time.Now(),
+		SerialNumber:          serial,
+		Subject:               subject,
+		SubjectKeyId:          keyId[:],
 	}
 
-	_, err = c.CertBySerial(*serial)
+	cert, err := x509.CreateCertificate(rand.Reader, metaCert, c.caCert, &pub, c.caKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return errors.New("not implemented")
+	serialFile := filepath.Join(c.dataStore, "serial", serial.Text(16)+".crt")
+	serialLink := filepath.Join("..", "serial", serial.Text(16)+".crt")
+	commonFile := filepath.Join(c.dataStore, "common", names[0]+".crt")
+
+	err = ioutil.WriteFile(serialFile, cert, 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	err = os.Symlink(serialLink, commonFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return cert, nil
 }
