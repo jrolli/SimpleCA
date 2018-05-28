@@ -20,7 +20,7 @@ import (
 	"time"
 
 	// Helper packages
-	"github.com/jrolli/ca-proxy/ca"
+	"github.com/jrolli/SimpleCA/ca"
 )
 
 func fatal(t *testing.T, e interface{}) {

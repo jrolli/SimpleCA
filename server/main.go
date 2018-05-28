@@ -4,7 +4,7 @@ import (
 	"log"
 
 	// Other packages
-	"github.com/jrolli/ca-proxy/ca/local"
+	"github.com/jrolli/SimpleCA/ca/local"
 )
 
 func fatalError(err error) {

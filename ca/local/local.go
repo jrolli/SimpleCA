@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	// Other packages
-	"github.com/jrolli/ca-proxy/ca"
+	"github.com/jrolli/SimpleCA/ca"
 )
 
 // TODO: Allow the control key to be distinct from the root key.
