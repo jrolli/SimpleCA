@@ -11,11 +11,6 @@
 ### Configuration
 
 ### API
-#### /pb/*
-Protobuf API
-
-#### /json/*
-JSON API
 
 #### authorize
 __Authorize a new certificate endpoint:__  Uses the admin credentials to

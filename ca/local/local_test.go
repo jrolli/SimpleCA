@@ -61,16 +61,14 @@ func TestLocalCA(t *testing.T) {
 	})
 
 	rootCert, err := x509.ParseCertificate(rootCertData)
-	if err != nil {
-		fatal(t, err)
-	}
+	fatal(t, err)
 
 	t.Run("check-cert-by-name", func(t *testing.T) {
 		res, err := c.CertByName(rootCert.Subject.CommonName)
 		fatal(t, err)
 
 		if bytes.Compare(res, rootCertData) != 0 {
-			fail(t, "certificates do not match")
+			t.Error("certificates do not match")
 		}
 	})
 

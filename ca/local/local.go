@@ -196,6 +196,9 @@ func (c *localCa) CertBySerial(bi big.Int) ([]byte, error) {
 }
 
 func (c *localCa) CertByName(name string) ([]byte, error) {
+	if strings.Index(name, string(filepath.Separator)) >= 0 {
+		return nil, errors.New("ca/local: forbidden character")
+	}
 	return ioutil.ReadFile(filepath.Join(c.dataStore, "common", name+".crt"))
 }
 
