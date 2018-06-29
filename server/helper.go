@@ -1,22 +1,12 @@
 package main
 
 import (
-	// "crypto"
-	// "crypto/rand"
-	// "crypto/sha256"
-	// "crypto/x509"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	// "flag"
-	// "io/ioutil"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	// "path/filepath"
-	// "strings"
-	// Other packages
-	// "github.com/jrolli/SimpleCA/ca/local"
 )
 
 // marshalPublicKey is a helper function for passing the ECDSA public key
