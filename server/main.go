@@ -28,6 +28,7 @@ func main() {
 
 	http.HandleFunc("/authorize", authHandler())
 	http.HandleFunc("/register", registerHandler())
+	http.HandleFunc("/register/", registerGetHandler())
 	http.HandleFunc("/serial/", certBySerialHandler())
 	http.HandleFunc("/name/", certByNameHandler())
 	http.HandleFunc("/ca.crt", rootCertHandler())

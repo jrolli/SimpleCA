@@ -1,12 +1,19 @@
 package main
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"math/big"
 	"net/http"
 	"strings"
+
+	"github.com/jrolli/gopkcs12"
 )
 
 type authMsg struct {
@@ -66,6 +73,55 @@ func registerHandler() http.HandlerFunc {
 	})
 }
 
+func registerGetHandler() http.HandlerFunc {
+	return handlerWrapper(func(w http.ResponseWriter, r *http.Request) {
+		checkMethod(w, r, http.MethodGet)
+
+		if r.URL.Path[len(r.URL.Path)-4:] != ".p12" {
+			checkError(w, r, errors.New("Unknown extension"))
+		}
+
+		authCode := r.URL.Path[len("/register/") : len(r.URL.Path)-4]
+
+		if strings.IndexFunc(authCode, safeChar) != -1 {
+			checkError(w, r, errors.New("Unsafe character"))
+		}
+
+		auth := []byte(authCode)
+
+		// /register
+		random := rand.Reader
+		curv := elliptic.P521()
+		certKey, err := ecdsa.GenerateKey(curv, random)
+		checkError(w, r, err)
+
+		pk := marshalPublicKey(certKey.PublicKey)
+
+		hash := crypto.SHA256
+		hasher := sha256.New()
+		msg := append(auth, []byte("\x00")...)
+		msg = append(msg, pk...)
+		_, err = hasher.Write(msg)
+		checkError(w, r, err)
+
+		var digest []byte
+		digest = hasher.Sum(digest)
+
+		sig, err := certKey.Sign(rand.Reader, digest, hash)
+
+		cert, err := certAuthority.Register(auth, pk, sig)
+		checkError(w, r, err)
+
+		p12, err := gopkcs12.Encode(cert, certKey, authCode)
+		checkError(w, r, err)
+
+		w.Header().Set("Content-Type", "application/x-pkcs12; charset=utf-8")
+
+		_, err = w.Write(p12)
+		checkError(w, r, err)
+	})
+}
+
 func rootCertHandler() http.HandlerFunc {
 	return handlerWrapper(func(w http.ResponseWriter, r *http.Request) {
 
@@ -73,6 +129,8 @@ func rootCertHandler() http.HandlerFunc {
 
 		cert, err := certAuthority.RootCert()
 		checkError(w, r, err)
+
+		w.Header().Set("Content-Type", "application/pkix-cert; charset=utf-8")
 
 		_, err = w.Write(cert)
 		checkError(w, r, err)
@@ -94,18 +152,15 @@ func crlHandler() http.HandlerFunc {
 	})
 }
 
-func safeChar(r rune) bool {
-	return !((r >= '0' && r <= '9') ||
-		(r >= 'a' && r <= 'z') ||
-		(r >= 'A' && r <= 'Z') ||
-		r == '.')
-}
-
 func certByNameHandler() http.HandlerFunc {
 	return handlerWrapper(func(w http.ResponseWriter, r *http.Request) {
 		checkMethod(w, r, http.MethodGet)
 
-		certName := r.URL.Path[len("/name/"):]
+		if r.URL.Path[len(r.URL.Path)-4:] != ".crt" {
+			checkError(w, r, errors.New("Unknown extension"))
+		}
+
+		certName := r.URL.Path[len("/name/") : len(r.URL.Path)-4]
 
 		if strings.IndexFunc(certName, safeChar) != -1 {
 			checkError(w, r, errors.New("Unsafe character"))
@@ -125,7 +180,11 @@ func certBySerialHandler() http.HandlerFunc {
 	return handlerWrapper(func(w http.ResponseWriter, r *http.Request) {
 		checkMethod(w, r, http.MethodGet)
 
-		serial := r.URL.Path[len("/serial/"):]
+		if r.URL.Path[len(r.URL.Path)-4:] != ".crt" {
+			checkError(w, r, errors.New("Unknown extension"))
+		}
+
+		serial := r.URL.Path[len("/serial/") : len(r.URL.Path)-4]
 
 		if strings.IndexFunc(serial, safeChar) != -1 {
 			checkError(w, r, errors.New("Unsafe character"))

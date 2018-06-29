@@ -12,27 +12,18 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
-	// "fmt"
-	// "errors"
 	"io/ioutil"
-	// "log"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
-	// "time"
 
 	// Other packages
 	"github.com/jrolli/SimpleCA/ca/local"
+	"github.com/jrolli/gopkcs12"
 )
-
-// marshalPublicKey is a helper function for passing the ECDSA public key
-// parameters to the existing marshal function for elliptic curves.
-func marshalPublicKey(pub ecdsa.PublicKey) []byte {
-	return elliptic.Marshal(pub.Curve, pub.X, pub.Y)
-}
 
 func fatal(t *testing.T, e interface{}) {
 	if e != nil {
@@ -75,9 +66,8 @@ func TestHandlerInterface(t *testing.T) {
 	t.Run("root-cert", func(t *testing.T) {
 		h := rootCertHandler()
 
-		input := bytes.NewReader([]byte(""))
 		respRec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/ca.crt", input)
+		req := httptest.NewRequest(http.MethodGet, "/ca.crt", nil)
 
 		h(respRec, req)
 		resp := respRec.Result()
@@ -98,13 +88,9 @@ func TestHandlerInterface(t *testing.T) {
 		h := authHandler()
 
 		t.Run("get", func(t *testing.T) {
-			msg := authMsg{[]string{}, []byte("")}
-			jsonMsg, err := json.Marshal(msg)
-			fatal(t, err)
 
-			input := bytes.NewReader(jsonMsg)
 			respRec := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/authorize", input)
+			req := httptest.NewRequest("GET", "/authorize", nil)
 
 			h(respRec, req)
 			resp := respRec.Result()
@@ -307,6 +293,84 @@ func TestHandlerInterface(t *testing.T) {
 			err = cert.VerifyHostname(val)
 			fail(t, err)
 		}
+	})
+
+	t.Run("register-get", func(t *testing.T) {
+		names := []string{"d.local.test", "e.local.test", "f.local.test"}
+
+		t.Run("authorize", func(t *testing.T) {
+			h := authHandler()
+
+			hasher.Reset()
+			msg := []byte(strings.Join(names, "\n"))
+			_, err := hasher.Write(msg)
+			fatal(t, err)
+
+			var digest []byte
+			digest = hasher.Sum(digest)
+
+			r, s, err := ecdsa.Sign(rand.Reader, authKey, digest)
+			if !ecdsa.Verify(&(authKey.PublicKey), digest, r, s) {
+				t.Fatal("cannot verify signature")
+			}
+
+			sig, err := authKey.Sign(rand.Reader, digest, hash)
+			fatal(t, err)
+
+			msgStruct := authMsg{names, sig}
+			jsonMsg, err := json.Marshal(msgStruct)
+			fatal(t, err)
+
+			input := bytes.NewReader(jsonMsg)
+			respRec := httptest.NewRecorder()
+			req := httptest.NewRequest("POST", "/authorize", input)
+
+			h(respRec, req)
+			resp := respRec.Result()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fail()
+			}
+
+			auth, err = ioutil.ReadAll(resp.Body)
+			fail(t, err)
+			if auth == nil {
+				t.Error("no auth token returned")
+			}
+		})
+
+		t.Run("register", func(t *testing.T) {
+			h := registerGetHandler()
+
+			// /register
+			respRec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/register/"+string(auth)+".p12", nil)
+
+			h(respRec, req)
+			resp := respRec.Result()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fail()
+			}
+
+			p12Data, err := ioutil.ReadAll(resp.Body)
+			fail(t, err)
+
+			if p12Data == nil {
+				t.Fatal("no certificate returned")
+			}
+
+			_, cert, err := gopkcs12.Decode(p12Data, string(auth))
+			fatal(t, err)
+
+			err = cert.CheckSignatureFrom(rootCert)
+			fail(t, err)
+
+			for _, val := range names {
+				err = cert.VerifyHostname(val)
+				fail(t, err)
+			}
+		})
 	})
 
 	t.Run("cert-lookup", func(t *testing.T) {

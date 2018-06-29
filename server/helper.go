@@ -5,6 +5,8 @@ import (
 	// "crypto/rand"
 	// "crypto/sha256"
 	// "crypto/x509"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	// "flag"
 	// "io/ioutil"
 	"fmt"
@@ -16,6 +18,19 @@ import (
 	// Other packages
 	// "github.com/jrolli/SimpleCA/ca/local"
 )
+
+// marshalPublicKey is a helper function for passing the ECDSA public key
+// parameters to the existing marshal function for elliptic curves.
+func marshalPublicKey(pub ecdsa.PublicKey) []byte {
+	return elliptic.Marshal(pub.Curve, pub.X, pub.Y)
+}
+
+func safeChar(r rune) bool {
+	return !((r >= '0' && r <= '9') ||
+		(r >= 'a' && r <= 'z') ||
+		(r >= 'A' && r <= 'Z') ||
+		r == '.')
+}
 
 func fatalError(err error) {
 	if err != nil {
@@ -65,7 +80,7 @@ func handlePanic() {
 		if os.IsNotExist(v.e) {
 			http.NotFound(v.w, v.r)
 		} else {
-			http.Error(v.w, v.Error(), http.StatusInternalServerError)
+			http.Error(v.w, v.Error(), v.status)
 		}
 		return
 	default:
