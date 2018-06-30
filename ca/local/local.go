@@ -36,8 +36,7 @@ import (
 // TODO: Allow the control key to be distinct from the root key.
 
 // Initialize takes the path to the data store for the CA and initializes
-// all of the necessary structure.  It always returns a CertAuthorizer so
-// it is important to check if there is an error during initializations.
+// all of the necessary structure.
 func Initialize(dataStore, namespace string) (ca.CertAuthorizer, error) {
 	c := localCa{nil, nil, dataStore, namespace}
 
