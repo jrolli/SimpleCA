@@ -273,7 +273,7 @@ func (c localCa) createCertificate(auth string, pub ecdsa.PublicKey) ([]byte, er
 		KeyUsage:              keyUse,
 		MaxPathLen:            2,
 		MaxPathLenZero:        false,
-		NotAfter:              time.Now().AddDate(10, 0, 7),
+		NotAfter:              time.Now().AddDate(1, 0, 7),
 		NotBefore:             time.Now(),
 		SerialNumber:          serial,
 		Subject:               subject,
