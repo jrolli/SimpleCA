@@ -232,6 +232,12 @@ func (c localCa) updateCRL(forced bool) error {
 func (c localCa) createCertificate(auth string, pub ecdsa.PublicKey) ([]byte, error) {
 	authFile := filepath.Join(c.dataStore, "auths", auth+".txt")
 	rawNames, err := ioutil.ReadFile(authFile)
+	if err != nil {
+		return nil, err
+	}
+	// Authorization has been used, fail closed
+	os.Remove(authFile)
+
 	names := strings.Split(string(rawNames), "\n")
 
 	random := rand.Reader
@@ -290,6 +296,7 @@ func (c localCa) createCertificate(auth string, pub ecdsa.PublicKey) ([]byte, er
 
 	err = os.Symlink(serialLink, commonFile)
 	if err != nil {
+		os.Remove(serialFile) // Undo saved certificate
 		return nil, err
 	}
 
