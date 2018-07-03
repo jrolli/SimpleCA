@@ -21,6 +21,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io/ioutil"
@@ -127,7 +128,18 @@ func registerGetHandler() http.HandlerFunc {
 		cert, err := certAuthority.Register(auth, pk, sig)
 		checkError(w, r, err)
 
-		p12, err := gopkcs12.Encode(cert, certKey, authCode)
+		newCert, err := x509.ParseCertificate(cert)
+		checkError(w, r, err)
+
+		root, err := certAuthority.RootCert()
+		checkError(w, r, err)
+
+		rootCert, err := x509.ParseCertificate(root)
+		checkError(w, r, err)
+
+		caCerts := []*x509.Certificate{rootCert}
+
+		p12, err := gopkcs12.Encode(certKey, newCert, caCerts, authCode)
 		checkError(w, r, err)
 
 		w.Header().Set("Content-Type", "application/x-pkcs12; charset=utf-8")
