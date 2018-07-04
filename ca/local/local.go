@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -111,6 +112,16 @@ func (c *localCa) Authorize(names []string, sig []byte) ([]byte, error) {
 	_, err = checkSignature(c.caKey.PublicKey, digest, sig)
 	if err != nil {
 		return nil, err
+	}
+
+	for _, name := range names {
+		nsLen := len(c.namespace) + 1
+		if len(name) <= nsLen || name[len(name)-nsLen:] != "."+c.namespace {
+			return nil, errors.New(fmt.Sprintf("'%s' not in namespace of '%s'", name, c.namespace))
+		}
+		if strings.IndexFunc(name, unsafeChar) != -1 {
+			return nil, errors.New("Unsafe character")
+		}
 	}
 
 	random := rand.Reader

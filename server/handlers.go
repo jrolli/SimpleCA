@@ -29,7 +29,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/jrolli/gopkcs12"
+	"github.com/jrolli/go-pkcs12"
 )
 
 type authMsg struct {
@@ -99,7 +99,7 @@ func registerGetHandler() http.HandlerFunc {
 
 		authCode := r.URL.Path[len("/register/") : len(r.URL.Path)-4]
 
-		if strings.IndexFunc(authCode, safeChar) != -1 {
+		if strings.IndexFunc(authCode, unsafeChar) != -1 {
 			checkError(w, r, errors.New("Unsafe character"))
 		}
 
@@ -139,7 +139,7 @@ func registerGetHandler() http.HandlerFunc {
 
 		caCerts := []*x509.Certificate{rootCert}
 
-		p12, err := gopkcs12.Encode(certKey, newCert, caCerts, authCode)
+		p12, err := pkcs12.Encode(certKey, newCert, caCerts, authCode)
 		checkError(w, r, err)
 
 		w.Header().Set("Content-Type", "application/x-pkcs12; charset=utf-8")
@@ -189,7 +189,7 @@ func certByNameHandler() http.HandlerFunc {
 
 		certName := r.URL.Path[len("/name/") : len(r.URL.Path)-4]
 
-		if strings.IndexFunc(certName, safeChar) != -1 {
+		if strings.IndexFunc(certName, unsafeChar) != -1 {
 			checkError(w, r, errors.New("Unsafe character"))
 		}
 
@@ -213,7 +213,7 @@ func certBySerialHandler() http.HandlerFunc {
 
 		serial := r.URL.Path[len("/serial/") : len(r.URL.Path)-4]
 
-		if strings.IndexFunc(serial, safeChar) != -1 {
+		if strings.IndexFunc(serial, unsafeChar) != -1 {
 			checkError(w, r, errors.New("Unsafe character"))
 		}
 

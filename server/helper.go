@@ -30,7 +30,7 @@ func marshalPublicKey(pub ecdsa.PublicKey) []byte {
 	return elliptic.Marshal(pub.Curve, pub.X, pub.Y)
 }
 
-func safeChar(r rune) bool {
+func unsafeChar(r rune) bool {
 	return !((r >= '0' && r <= '9') ||
 		(r >= 'a' && r <= 'z') ||
 		(r >= 'A' && r <= 'Z') ||

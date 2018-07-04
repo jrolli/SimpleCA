@@ -27,6 +27,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/big"
 	"net/http"
@@ -37,7 +38,7 @@ import (
 
 	// Other packages
 	"github.com/jrolli/SimpleCA/ca/local"
-	"github.com/jrolli/gopkcs12"
+	"github.com/jrolli/go-pkcs12"
 )
 
 func fatal(t *testing.T, e interface{}) {
@@ -375,10 +376,17 @@ func TestHandlerInterface(t *testing.T) {
 				t.Fatal("no certificate returned")
 			}
 
-			_, cert, err := gopkcs12.Decode(p12Data, string(auth))
+			_, cert, caCerts, err := pkcs12.Decode(p12Data, string(auth))
 			fatal(t, err)
 
 			err = cert.CheckSignatureFrom(rootCert)
+			fail(t, err)
+
+			if len(caCerts) != 1 {
+				t.Fatal(fmt.Sprintf("expected 1 additional cert found %d", len(caCerts)))
+			}
+
+			err = cert.CheckSignatureFrom(caCerts[0])
 			fail(t, err)
 
 			for _, val := range names {

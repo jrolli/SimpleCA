@@ -38,6 +38,13 @@ func marshalPublicKey(pub ecdsa.PublicKey) []byte {
 	return elliptic.Marshal(pub.Curve, pub.X, pub.Y)
 }
 
+func unsafeChar(r rune) bool {
+	return !((r >= '0' && r <= '9') ||
+		(r >= 'a' && r <= 'z') ||
+		(r >= 'A' && r <= 'Z') ||
+		r == '.' || r == '@')
+}
+
 // There is some kind of bug in the Go's x509 code that causes this to fail
 type ecdsaSignature struct {
 	R, S *big.Int
@@ -255,7 +262,7 @@ func (c localCa) createCertificate(auth string, pub ecdsa.PublicKey) ([]byte, er
 		// ExtraNames:,
 	}
 
-	keyId := sha256.Sum256(marshalPublicKey(c.caKey.PublicKey))
+	keyId := sha256.Sum256(marshalPublicKey(pub))
 	sn_max := big.NewInt((1 << 30) - 1)
 
 	serial, err := rand.Int(random, sn_max)
