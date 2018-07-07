@@ -20,6 +20,8 @@ package main
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -35,17 +37,16 @@ import (
 func main() {
 	// always needed
 	server := flag.String("server", "", "address of CA server")
-	key := flag.String("key", "", "file for ECDSA private key")
 
 	// authorize flags
 	authorize := flag.Bool("authorize", false, "create a new authorization")
 	names := flag.String("names", "", "comma separated list of names for cert (CN is first)")
+	key := flag.String("key", "", "file for ECDSA private key")
 
 	// register flags
 	register := flag.Bool("register", false, "register a new certificate")
 	token := flag.String("token", "", "authorization token for registration")
-	p12 := flag.Bool("p12", false, "register using the PKCS12 end-point") // negates 'key'
-	out := flag.String("out", "", "path for output")
+	p12 := flag.String("p12", "out.p12", "path for new credentials")
 
 	// parse and check for consistency in flags
 	flag.Parse()
@@ -59,26 +60,23 @@ func main() {
 		invokeError("Error: 'key' required with 'authorize'")
 	} else if *authorize && *names == "" {
 		invokeError("Error: 'names' required with 'authorize'")
+	} else if *names != "" && *key != "" {
+		invokeError("Error: 'key' only valid with 'authorize'")
 	} else if *names != "" && !*authorize {
 		invokeError("Error: 'names' only valid with 'authorize'")
 	} else if *register && *token == "" {
 		invokeError("Error: 'token' required with 'register'")
-	} else if *register && *out == "" {
-		invokeError("Error: 'out' required with 'register'")
-	} else if *p12 && !*register {
+	} else if *p12 != "out.p12" && !*register {
 		invokeError("Error: 'p12' only valid with 'register'")
-	} else if *out != "" && !*register {
-		invokeError("Error: 'out' only valid with 'register'")
 	} else if *token != "" && !*register {
 		invokeError("Error: 'token' only valid with 'register'")
-	} else if *register && *p12 && *key != "" {
-		invokeError("Error: cannot use 'key' when registering with 'p12'")
 	}
 
 	// execute based off input
 	if *authorize {
 		sendAuth(*server, *key, *names)
 	}
+	sendReg(*server, *key, *names)
 }
 
 type authMsg struct {
@@ -137,25 +135,28 @@ func sendReg(server, derFile, tokenStr string) {
 	hash := crypto.SHA256
 	hasher := sha256.New()
 
-	keyDer, err := ioutil.ReadFile(derFile)
+	random := rand.Reader
+	curv := elliptic.P521()
+	certKey, err := ecdsa.GenerateKey(curv, random)
 	checkError(err)
 
-	key, err := x509.ParseECPrivateKey(keyDer)
-	checkError(err)
+	pk := marshalPublicKey(certKey.PublicKey)
 
-	msg := []byte(strings.Join(names, "\n"))
+	msg := append(token, []byte("\x00")...)
+	msg = append(msg, pk...)
 	_, err = hasher.Write(msg)
 	checkError(err)
 
 	var digest []byte
 	digest = hasher.Sum(digest)
 
-	sig, err := key.Sign(rand.Reader, digest, hash)
+	sig, err := certKey.Sign(rand.Reader, digest, hash)
 	checkError(err)
 
-	msgStruct := authMsg{names, sig}
+	msgStruct := registerMsg{token, pk, sig}
 	jsonMsg, err := json.Marshal(msgStruct)
 	checkError(err)
+
 	jsonReader := bytes.NewReader(jsonMsg)
 
 	client := http.DefaultClient
@@ -179,4 +180,10 @@ func checkError(err error) {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
+}
+
+// marshalPublicKey is a helper function for passing the ECDSA public key
+// parameters to the existing marshal function for elliptic curves.
+func marshalPublicKey(pub ecdsa.PublicKey) []byte {
+	return elliptic.Marshal(pub.Curve, pub.X, pub.Y)
 }
