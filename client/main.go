@@ -60,7 +60,7 @@ func main() {
 		invokeError("Error: 'key' required with 'authorize'")
 	} else if *authorize && *names == "" {
 		invokeError("Error: 'names' required with 'authorize'")
-	} else if *names != "" && *key != "" {
+	} else if *key != "" && !*authorize {
 		invokeError("Error: 'key' only valid with 'authorize'")
 	} else if *names != "" && !*authorize {
 		invokeError("Error: 'names' only valid with 'authorize'")
@@ -76,7 +76,7 @@ func main() {
 	if *authorize {
 		sendAuth(*server, *key, *names)
 	}
-	sendReg(*server, *key, *names)
+	sendReg(*server, *key, *token)
 }
 
 type authMsg struct {
