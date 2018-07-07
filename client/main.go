@@ -26,6 +26,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -75,8 +76,12 @@ func main() {
 	// execute based off input
 	if *authorize {
 		sendAuth(*server, *key, *names)
+		os.Exit(0)
+	} else if *register {
+		sendReg(*server, *p12, *token)
+		os.Exit(0)
 	}
-	sendReg(*server, *key, *token)
+	invokeError("Error: invalid syntax")
 }
 
 type authMsg struct {
@@ -128,7 +133,7 @@ type registerMsg struct {
 	Signature []byte
 }
 
-func sendReg(server, derFile, tokenStr string) {
+func sendReg(server, p12File, tokenStr string) {
 	url := server + "/register"
 	token := []byte(tokenStr)
 
@@ -163,10 +168,19 @@ func sendReg(server, derFile, tokenStr string) {
 	resp, err := client.Post(url, "application/json", jsonReader)
 	checkError(err)
 
+	if resp.StatusCode != http.StatusOK {
+		respBody, err := ioutil.ReadAll(resp.Body)
+		checkError(err)
+
+		fmt.Fprintln(os.Stderr, string(respBody))
+		checkError(errors.New(fmt.Sprintf("unexpected server code %d (%s)", resp.StatusCode, resp.Status)))
+	}
+
 	respBody, err := ioutil.ReadAll(resp.Body)
 	checkError(err)
 
-	fmt.Println(string(respBody))
+	err = ioutil.WriteFile(p12File, respBody, 0400)
+	checkError(err)
 }
 
 func invokeError(msg string) {
