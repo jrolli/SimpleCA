@@ -1,5 +1,8 @@
 *.key
 *.crt
 
+client/client
+
+server/ca
 server/server
 
