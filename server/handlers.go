@@ -88,6 +88,8 @@ func registerHandler() http.HandlerFunc {
 		}
 		checkError(w, r, err)
 
+		w.Header().Set("Content-Type", "application/pkix-cert; charset=utf-8")
+
 		_, err = w.Write(cert)
 		checkError(w, r, err)
 	})
