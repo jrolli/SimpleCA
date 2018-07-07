@@ -18,6 +18,7 @@ package main
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -50,7 +51,7 @@ func hPanic(w http.ResponseWriter, r *http.Request, status int, e error) {
 
 func checkMethod(w http.ResponseWriter, r *http.Request, method string) {
 	if r.Method != method {
-		hPanic(w, r, http.StatusMethodNotAllowed, nil)
+		hPanic(w, r, http.StatusMethodNotAllowed, errors.New(fmt.Sprintf("%s method not supported", r.Method)))
 	}
 }
 
@@ -68,9 +69,6 @@ type handlerError struct {
 }
 
 func (h *handlerError) Error() string {
-	if h.status == http.StatusMethodNotAllowed {
-		return fmt.Sprintf("%s method not supported", h.r.Method)
-	}
 	return h.e.Error()
 }
 

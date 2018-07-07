@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/jrolli/go-pkcs12"
@@ -78,10 +79,13 @@ func registerHandler() http.HandlerFunc {
 		json.Unmarshal(rawMsg, &msg)
 
 		if len(msg.Signature) == 0 || len(msg.AuthKey) == 0 || len(msg.PublicKey) == 0 {
-			hPanic(w, r, http.StatusBadRequest, errors.New("Invalid JSON"))
+			hPanic(w, r, http.StatusBadRequest, errors.New("invalid JSON"))
 		}
 
 		cert, err := certAuthority.Register(msg.AuthKey, msg.PublicKey, msg.Signature)
+		if os.IsNotExist(err) {
+			hPanic(w, r, http.StatusForbidden, errors.New("invalid token"))
+		}
 		checkError(w, r, err)
 
 		_, err = w.Write(cert)
@@ -94,13 +98,13 @@ func registerGetHandler() http.HandlerFunc {
 		checkMethod(w, r, http.MethodGet)
 
 		if r.URL.Path[len(r.URL.Path)-4:] != ".p12" {
-			checkError(w, r, errors.New("Unknown extension"))
+			hPanic(w, r, http.StatusNotFound, errors.New("unknown extension"))
 		}
 
 		authCode := r.URL.Path[len("/register/") : len(r.URL.Path)-4]
 
 		if strings.IndexFunc(authCode, unsafeChar) != -1 {
-			checkError(w, r, errors.New("Unsafe character"))
+			hPanic(w, r, http.StatusBadRequest, errors.New("unsafe character"))
 		}
 
 		auth := []byte(authCode)
@@ -208,18 +212,18 @@ func certBySerialHandler() http.HandlerFunc {
 		checkMethod(w, r, http.MethodGet)
 
 		if r.URL.Path[len(r.URL.Path)-4:] != ".crt" {
-			checkError(w, r, errors.New("Unknown extension"))
+			hPanic(w, r, http.StatusNotFound, errors.New("unknown extension"))
 		}
 
 		serial := r.URL.Path[len("/serial/") : len(r.URL.Path)-4]
 
 		if strings.IndexFunc(serial, unsafeChar) != -1 {
-			checkError(w, r, errors.New("Unsafe character"))
+			hPanic(w, r, http.StatusBadRequest, errors.New("unsafe character"))
 		}
 
 		var s big.Int
 		if _, success := s.SetString(serial, 16); !success {
-			checkError(w, r, errors.New("Could not parse serial"))
+			hPanic(w, r, http.StatusBadRequest, errors.New("Could not parse serial"))
 		}
 
 		cert, err := certAuthority.CertBySerial(s)
