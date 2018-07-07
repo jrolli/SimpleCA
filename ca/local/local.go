@@ -120,7 +120,7 @@ func (c *localCa) Authorize(names []string, sig []byte) ([]byte, error) {
 			return nil, errors.New(fmt.Sprintf("'%s' not in namespace of '%s'", name, c.namespace))
 		}
 		if strings.IndexFunc(name, unsafeChar) != -1 {
-			return nil, errors.New("Unsafe character")
+			return nil, errors.New("Unsafe character in names")
 		}
 	}
 
