@@ -1,0 +1,17 @@
+language: go
+
+go:
+  - "1.x"
+  - "1.8"
+  - "1.10.x"
+  - master
+
+install:
+  - go get -t github.com/jrolli/SimpleCA/ca/local
+  - go get -t github.com/jrolli/SimpleCA/client
+  - go get -t github.com/jrolli/SimpleCA/server
+
+script:
+  - go test -v github.com/jrolli/SimpleCA/ca/local
+  - go test -v github.com/jrolli/SimpleCA/client
+  - go test -v github.com/jrolli/SimpleCA/server
