@@ -190,13 +190,13 @@ func certByNameHandler() http.HandlerFunc {
 		checkMethod(w, r, http.MethodGet)
 
 		if r.URL.Path[len(r.URL.Path)-4:] != ".crt" {
-			checkError(w, r, errors.New("Unknown extension"))
+			hPanic(w, r, http.StatusNotFound, errors.New("Unknown extension"))
 		}
 
 		certName := r.URL.Path[len("/name/") : len(r.URL.Path)-4]
 
 		if strings.IndexFunc(certName, unsafeChar) != -1 {
-			checkError(w, r, errors.New("Unsafe character"))
+			hPanic(w, r, http.StatusBadRequest, errors.New("Unsafe character"))
 		}
 
 		cert, err := certAuthority.CertByName(certName)
