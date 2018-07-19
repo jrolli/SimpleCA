@@ -39,38 +39,44 @@ import (
 )
 
 func fatal(t *testing.T, e interface{}) {
+	t.Helper()
 	if e != nil {
 		t.Fatal(e)
 	}
 }
 
 func fail(t *testing.T, e interface{}) {
+	t.Helper()
 	if e != nil {
 		t.Error(e)
 	}
 }
 
-func TestLocalCA(t *testing.T) {
-	r, err := rand.Int(rand.Reader, big.NewInt((1<<32)-1))
-	fatal(t, err)
+var r big.Int
+var datastore string
+var c ca.CertAuthorizer
 
-	datastore := filepath.Join(os.TempDir(), r.Text(16))
+func TestMain(m *testing.M) {
+	r, err := rand.Int(rand.Reader, big.NewInt((1<<32)-1))
+	if err != nil {
+		r = big.NewInt(42)
+	}
+	datastore = filepath.Join(os.TempDir(), r.Text(16))
 	defer os.RemoveAll(datastore)
 
-	var c ca.CertAuthorizer
+	os.Exit(m.Run())
+}
+
+func TestRoot(t *testing.T) {
+	var err error
 
 	t.Run("initialize", func(t *testing.T) {
 		c, err = Initialize(datastore, "local.test")
 		fatal(t, err)
 	})
 
-	t.Run("reinitialize", func(t *testing.T) {
-		c, err = Initialize(datastore, "local.test")
-		fail(t, err)
-	})
-
 	var rootCertData []byte
-	t.Run("get-root-cert", func(t *testing.T) {
+	t.Run("get-cert", func(t *testing.T) {
 		rootCertData, err = c.RootCert()
 		fail(t, err)
 	})

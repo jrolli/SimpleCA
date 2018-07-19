@@ -42,12 +42,14 @@ import (
 )
 
 func fatal(t *testing.T, e interface{}) {
+	t.Helper()
 	if e != nil {
 		t.Fatal(e)
 	}
 }
 
 func fail(t *testing.T, e interface{}) {
+	t.Helper()
 	if e != nil {
 		t.Error(e)
 	}
@@ -311,9 +313,10 @@ func TestHandlerInterface(t *testing.T) {
 		}
 	})
 
-	t.Run("register-get", func(t *testing.T) {
-		names := []string{"d.local.test", "e.local.test", "f.local.test"}
+	var serial *big.Int
+	names = []string{"d.local.test", "e.local.test", "f.local.test"}
 
+	t.Run("register-get", func(t *testing.T) {
 		t.Run("authorize", func(t *testing.T) {
 			h := authHandler()
 
@@ -393,16 +396,82 @@ func TestHandlerInterface(t *testing.T) {
 				err = cert.VerifyHostname(val)
 				fail(t, err)
 			}
+
+			serial = cert.SerialNumber
 		})
 	})
 
 	t.Run("cert-lookup", func(t *testing.T) {
 		t.Run("by-serial", func(t *testing.T) {
-			// /serial/[serial]
+			h := certBySerialHandler()
+
+			// /register
+			respRec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/serial/"+serial.Text(16)+".crt", nil)
+
+			h(respRec, req)
+			resp := respRec.Result()
+
+			if resp.StatusCode != http.StatusOK {
+				certData, _ := ioutil.ReadAll(resp.Body)
+				t.Fatalf("Expected status 200 (OK) received status %d (%s): %s", resp.StatusCode, resp.Status, certData)
+			}
+
+			certData, err := ioutil.ReadAll(resp.Body)
+			fail(t, err)
+
+			if certData == nil {
+				t.Fatal("no certificate returned")
+			}
+
+			cert, err = x509.ParseCertificate(certData)
+			fatal(t, err)
+
+			err = cert.CheckSignatureFrom(rootCert)
+			fail(t, err)
+
+			for _, val := range names {
+				err = cert.VerifyHostname(val)
+				fail(t, err)
+			}
 		})
 
 		t.Run("by-name", func(t *testing.T) {
-			// /name/[cn]
+			h := certByNameHandler()
+
+			// /register
+			respRec := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodGet, "/name/"+names[0]+".crt", nil)
+
+			h(respRec, req)
+			resp := respRec.Result()
+
+			if resp.StatusCode != http.StatusOK {
+				certData, _ := ioutil.ReadAll(resp.Body)
+				t.Fatalf("Expected status 200 (OK) received status %d (%s): %s", resp.StatusCode, resp.Status, certData)
+			}
+
+			certData, err := ioutil.ReadAll(resp.Body)
+			fail(t, err)
+
+			if certData == nil {
+				t.Fatal("no certificate returned")
+			}
+
+			cert, err = x509.ParseCertificate(certData)
+			fatal(t, err)
+
+			err = cert.CheckSignatureFrom(rootCert)
+			fail(t, err)
+
+			for _, val := range names {
+				err = cert.VerifyHostname(val)
+				fail(t, err)
+			}
+
+			if serial.Cmp(cert.SerialNumber) != 0 {
+				t.Error("serial mismatch")
+			}
 		})
 	})
 
