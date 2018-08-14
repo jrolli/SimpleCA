@@ -98,6 +98,10 @@ func Initialize(dataStore, namespace string) (ca.CertAuthorizer, error) {
 	return &c, c.updateCRL(true)
 }
 
+// Authorize takes the names authorized for the cert and a signature by
+// the control key over those names.  The function returns a byte-string
+// that is signed by the new public key as proof of authorization in the
+// 'Register' function.
 func (c *localCa) Authorize(names []string, sig []byte) ([]byte, error) {
 	msg := []byte(strings.Join(names, "\n"))
 	hasher := sha256.New()
@@ -138,6 +142,11 @@ func (c *localCa) Authorize(names []string, sig []byte) ([]byte, error) {
 	return token, nil
 }
 
+// Register takes the authorization byte-string, the public key for the
+// new certificate, and the signature of the authorization string using
+// the new private-key and returns the new certificate.  The server must
+// validate both the authorization token (valid and not used) and the
+// signature (corresponds to the presented public key).
 func (c *localCa) Register(auth, pub, sig []byte) ([]byte, error) {
 	hasher := sha256.New()
 	msg := append(auth, []byte("\x00")...)
@@ -166,10 +175,19 @@ func (c *localCa) Register(auth, pub, sig []byte) ([]byte, error) {
 	return c.createCertificate(string(auth), pubKey)
 }
 
+// Renew uses an existing certificate to get a new certificate for the
+// same domain names.  The private key of the old certificate is used to
+// sign the new public key.  The server is able to validate the signature
+// and authorized domain names by using the serial to look it up in its
+// local database.  Upon granting the new certificate, the server must
+// revoke the old certificate. [NOT IMPLEMENTED]
 func (c *localCa) Renew(oldCert, pub, sig []byte) ([]byte, error) {
 	return nil, errors.New("not implemented")
 }
 
+// Revoke uses the control key to revoke an existing certificate by its
+// serial in hex format.  The server must validate the signature of the
+// control key before revoking the certificate.
 func (c *localCa) Revoke(s, sig []byte) error {
 	hasher := sha256.New()
 	_, err := hasher.Write(s)
@@ -215,11 +233,19 @@ func (c *localCa) Revoke(s, sig []byte) error {
 }
 
 // Getters
+
+// CertBySerial returns the DER encoded certificate with the matching
+// serial number.  Returns an appropriate error if it is invalid,
+// expired, or non-existent.
+CertBySerial(big.Int) ([]byte, e
 func (c *localCa) CertBySerial(bi big.Int) ([]byte, error) {
 	f := filepath.Join(c.dataStore, "serial", bi.Text(16)+".crt")
 	return ioutil.ReadFile(f)
 }
 
+// CertByName returns the DER encoded certificate with the matching
+// common name.  Returns an appropriate error if it is invalid, expired,
+// or non-existent.
 func (c *localCa) CertByName(name string) ([]byte, error) {
 	if strings.Index(name, string(filepath.Separator)) >= 0 {
 		return nil, errors.New("ca/local: forbidden character")
@@ -227,6 +253,7 @@ func (c *localCa) CertByName(name string) ([]byte, error) {
 	return ioutil.ReadFile(filepath.Join(c.dataStore, "common", name+".crt"))
 }
 
+// RootCert returns the root certificate in DER encoding.
 func (c *localCa) RootCert() ([]byte, error) {
 	if c.caCert == nil {
 		return nil, errors.New("ca/local: unintialized ca")
@@ -234,6 +261,7 @@ func (c *localCa) RootCert() ([]byte, error) {
 	return c.caCert.Raw, nil
 }
 
+// CRL returns a CRL that is currently valid.
 func (c *localCa) CRL() ([]byte, error) {
 	err := c.updateCRL(false)
 	if err != nil {
