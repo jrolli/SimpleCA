@@ -237,7 +237,6 @@ func (c *localCa) Revoke(s, sig []byte) error {
 // CertBySerial returns the DER encoded certificate with the matching
 // serial number.  Returns an appropriate error if it is invalid,
 // expired, or non-existent.
-CertBySerial(big.Int) ([]byte, e
 func (c *localCa) CertBySerial(bi big.Int) ([]byte, error) {
 	f := filepath.Join(c.dataStore, "serial", bi.Text(16)+".crt")
 	return ioutil.ReadFile(f)
