@@ -268,8 +268,7 @@ func TestHandlerInterface(t *testing.T) {
 		pk := marshalPublicKey(certKey.PublicKey)
 
 		hasher.Reset()
-		msg := append(auth, []byte("\x00")...)
-		msg = append(msg, pk...)
+		msg := append(auth)
 		_, err := hasher.Write(msg)
 		fatal(t, err)
 

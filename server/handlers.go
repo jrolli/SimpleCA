@@ -121,8 +121,7 @@ func registerGetHandler() http.HandlerFunc {
 
 		hash := crypto.SHA256
 		hasher := sha256.New()
-		msg := append(auth, []byte("\x00")...)
-		msg = append(msg, pk...)
+		msg := append(auth)
 		_, err = hasher.Write(msg)
 		checkError(w, r, err)
 

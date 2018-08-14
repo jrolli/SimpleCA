@@ -174,8 +174,7 @@ func TestRoot(t *testing.T) {
 		fatal(t, err)
 
 		hasher.Reset()
-		msg := append(auth, []byte("\x00")...)
-		msg = append(msg, marshalPublicKey(certKey.PublicKey)...)
+		msg := append(auth)
 		_, err := hasher.Write(msg)
 		fatal(t, err)
 

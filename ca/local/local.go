@@ -149,8 +149,7 @@ func (c *localCa) Authorize(names []string, sig []byte) ([]byte, error) {
 // signature (corresponds to the presented public key).
 func (c *localCa) Register(auth, pub, sig []byte) ([]byte, error) {
 	hasher := sha256.New()
-	msg := append(auth, []byte("\x00")...)
-	msg = append(msg, pub...)
+	msg := append(auth)
 	_, err := hasher.Write(msg)
 	if err != nil {
 		return nil, err
